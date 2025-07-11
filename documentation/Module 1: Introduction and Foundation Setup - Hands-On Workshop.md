@@ -1,4 +1,4 @@
-# Week 1: Introduction and Foundation Setup - Hands-On Workshop
+# MLOPS Model Migration Workshop – Week 1: Introduction and Foundation Setup - Hands-On Workshop
 
 ---
 
