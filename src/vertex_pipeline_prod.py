@@ -23,11 +23,6 @@ PIPELINE_DESCRIPTION = "Production pipeline for diabetes prediction model on Ver
 BASE_IMAGE = "python:3.9"
 REQUIREMENTS_PATH = "src/requirements.txt"
 
-FEATURE_COLUMNS = [
-    "Pregnancies", "PlasmaGlucose", "DiastolicBloodPressure",
-    "TricepsThickness", "SerumInsulin", "BMI", "DiabetesPedigree", "Age"
-]
-
 
 @component(
     base_image=BASE_IMAGE,
@@ -89,6 +84,11 @@ def train_model_op(
     from sklearn.linear_model import LogisticRegression
     import logging
 
+    FEATURE_COLUMNS = [
+        "Pregnancies", "PlasmaGlucose", "DiastolicBloodPressure",
+        "TricepsThickness", "SerumInsulin", "BMI", "DiabetesPedigree", "Age"
+    ]
+
     logging.basicConfig(level=logging.INFO)
     train_df = pd.read_csv(train_data.path)
     X = train_df[FEATURE_COLUMNS]
@@ -121,6 +121,11 @@ def evaluate_model_op(
     import joblib
     from sklearn.metrics import accuracy_score
     import logging
+
+    FEATURE_COLUMNS = [
+        "Pregnancies", "PlasmaGlucose", "DiastolicBloodPressure",
+        "TricepsThickness", "SerumInsulin", "BMI", "DiabetesPedigree", "Age"
+    ]
 
     logging.basicConfig(level=logging.INFO)
     test_df = pd.read_csv(test_data.path)
