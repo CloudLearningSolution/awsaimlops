@@ -1,4 +1,4 @@
-# Week 2: Core Architecture - Hands-On Workshop
+# Machine Learning Operations Playbook Adoption Workshop – Week 2: Core Architecture - Hands-On Workshop
 
 ---
 
@@ -65,7 +65,7 @@ This hands-on workshop builds upon the cost management foundation from Module 1 
 
 ### 10. Access AWS Console
 
-- Navigate to [AWS Console](https://console.aws.amazon.com)
+- Navigate to [AWS Console](https://799101906606.signin.aws.amazon.com/console)
 
 - Launch CloudShell from the top navigation bar
 
@@ -172,7 +172,7 @@ This hands-on workshop builds upon the cost management foundation from Module 1 
 
 ### 10. Access AWS Console
 
-- Navigate to [AWS Console](https://console.aws.amazon.com)
+- Navigate to [AWS Console](https://799101906606.signin.aws.amazon.com/console)
 
 - Launch CloudShell from the top navigation bar
 
@@ -204,7 +204,7 @@ This hands-on workshop builds upon the cost management foundation from Module 1 
 
 ### 14. Compare Edge Location Coverage
 
-- Identify 3 cities with edge locations from the AWS map
+- Identify 3 cities with edge locations from the AWS map : https://aws.amazon.com/about-aws/global-infrastructure/
 
 - Note proximity to major user populations
 
@@ -289,23 +289,59 @@ This hands-on workshop builds upon the cost management foundation from Module 1 
 
 - Use the Project Picker to select your project
 
-![Google Cloud Console Welcome Page](media/images/Project_Picker.png)
+![Google Cloud Console Welcome Page](Project_Picker.png)
 
-### 12. Activate Cloud Shell
+### 12. Activate Cloud Shell or Use Cloud Workstations
 
-- Click the terminal icon in the top navigation bar
+- Enter Workstations in the search bar.
 
-![Google Cloud Console Welcome Page](media/images/)
+![Google Cloud Console Welcome Page](workstations.png)
+
+- Select Create workstation
+
+- Enter a unique display name
+
+- Select test-configuration
+
+- In the configuration field drop down, select test-configuration
+
+- Select Create. Note: Creation may take several minutes to complete.
+
+- Select Start, located in the All workstations section, below the Quick actions column. Note: Creation may take several minutes to complete.
+
+![Google Cloud Console Welcome Page](launchCloudWorkstation.png)
+
+- Select Launch, afterwards, using the new workstation select the menu icon to access options, select terminal from the options.
+
+![Google Cloud Console Welcome Page](terminal-workstation.png)
+
+- Review the terminal area.
 
 ### 13. Explore Regions and Zones via CLI
 
+- Run: `gcloud auth login`
+
+- Select the clickable link. Afterwards, select Open, upon selection a new browser session will start. Follow the prompts in the new session to login and get a verification code.
+
+![Google Cloud Console Welcome Page](gcloud_auth_CloudSDK.png)
+
+- Select Continue
+
+- Follow the prompts and provide username or password if required.
+
+- Select Copy. Note: The credential is a verfication code.
+
+- Paste the verification code into the terminal
+
+- Run: `gcloud config set project mfav2-374520`
+
 - Run: `gcloud compute regions list --format="table(name,status,zones.len():label=ZONES)"`
 
-- Run: `gcloud compute regions describe us-central1`
+- Run: `gcloud compute regions describe us-east1`
 
 - Run: `gcloud compute zones list --format="table(name,region,status)"`
 
-- Run: `gcloud compute zones list --filter="region:us-central1" --format="table(name,status)"`
+- Run: `gcloud compute zones list --filter="region:us-east1" --format="table(name,status)"`
 
 ### 14. Inspect Region-Zone Mapping via Console
 
@@ -317,9 +353,9 @@ This hands-on workshop builds upon the cost management foundation from Module 1 
 
 ### 15. Check Service Availability
 
-- Run: `gcloud ai models list --region=us-central1 2>/dev/null || echo "Vertex AI not available in this region"`
+- Run: `gcloud ai models list --region=us-east1 2>/dev/null || echo "Vertex AI not available in this region"`
 
-- Run: `gcloud compute machine-types list --zones=us-central1-a --filter="name:n1-standard"`
+- Run: `gcloud compute machine-types list --zones=us-east1-a --filter="name:n1-standard"`
 
 ---
 
@@ -356,177 +392,516 @@ This hands-on workshop builds upon the cost management foundation from Module 1 
 - Validated against [Google Cloud Regions and Zones Documentation](https://cloud.google.com/compute/docs/regions-zones)
 ---
 
-# Lab 2.4: Google Cloud Edge Network and Cloud CDN Exploration
+# 🧪 Lab 2.4: Google Cloud Edge Network and Cloud CDN Exploration
+
+**Duration:** 45 minutes
+**Objective:** Explore Google Cloud’s edge infrastructure and understand how Cloud CDN accelerates content delivery using globally distributed edge locations—without finalizing resource creation.
 
 ---
 
-## Duration
+## 1. Prerequisites
 
-**30 minutes**
+- Google Cloud Console access with project-level permissions
 
-## Objective
+- Cloud Shell enabled or Cloud Workstations created and launched
 
-Implement global content delivery using Google's edge network.
+- Basic understanding of networking and CDN principles
 
----
+- Ensure the Cloud CDN API is enabled for your project
 
-## Prerequisites
-
-- Google Cloud Console access with project access rights
-- Cloud Shell access enabled
-- Basic understanding of CDN concepts
+- No load balancer or backend service creation required
 
 ---
 
-## Theory Review
+## 2. Theory Overview
 
-- Google Cloud operates **202+ network edge locations** across 200+ countries and territories
-- **Cloud CDN:** 100+ cache locations for content delivery
-- **Media CDN:** 3,000+ locations for video streaming and large file downloads
-- Global load balancing with **Anycast IP addresses**
-- Integration with Google’s private global network backbone
+- Google Cloud’s edge network includes over 200 edge locations globally
 
+- Edge PoPs (Points of Presence) cache and serve content closer to users
 
-## 🧪 Hands-On Lab
+- Cloud CDN integrates with HTTP(S) Load Balancing to deliver content via edge caches
 
-### Part 1: Cloud Storage Setup for CDN Origin (10 minutes)
+- CDN reduces latency, offloads origin servers, and improves user experience
 
-#### ✅ Step 1: Create Cloud Storage Bucket via Console
-
-**Navigate to Cloud Storage:**
-
-1. Go to **Cloud Storage > Buckets**
-2. Click **Create bucket**
-
-**Configure Storage Bucket:**
-
-- Name: `ml-cdn-content-[random-number]`
-- Location type: Multi-region
-- Default storage class: Standard
-- Access control: Fine-grained
-- Click **Create**
-
-**Upload Sample Content:**
-
-1. Click your bucket name
-2. Click **Upload files**
-3. Upload an image, video, or HTML file
-4. Click **Upload**
-
-**Make Content Publicly Accessible:**
-
-1. Select the uploaded file
-2. Click **Permissions** tab
-3. Click **Grant access**
-4. New principals: `allUsers`
-5. Role: `Storage Object Viewer`
-6. Click **Save**
-
-
-### Part 2: Cloud CDN Configuration (15 minutes)
-
-#### 🌐 Step 2: Create HTTP Load Balancer with CDN via Console
-
-**Navigate to Load Balancing:**
-
-1. Go to **Network Services > Load balancing**
-2. Click **Create load balancer**
-
-**Choose Load Balancer Type:**
-
-- Select **Global external Application Load Balancer**
-- Click **Configure**
-
-**Configure Backend (Enable Cloud CDN):**
-
-- Name: `ml-cdn-backend`
-- Backend type: Cloud Storage bucket
-- Cloud Storage bucket: Select your bucket
-- Enable **Cloud CDN**
-- Cache mode: `CACHE_ALL_STATIC`
-- Default TTL: `3600 seconds`
-
-**Configure Frontend:**
-
-- Name: `ml-cdn-frontend`
-- Protocol: HTTP
-- Port: 80
-- IP Address: Create IP address (`ml-cdn-ip`)
-
-**Review and Create:**
-
-- Name: `ml-cdn-lb`
-- Click **Create**
-
-
-#### 🔍 Step 3: Verify CDN Configuration via Cloud Shell
-
-**List Load Balancers:**
-
-```python
-gcloud compute url-maps list --format="table(name,defaultService)"
-
-gcloud compute url-maps describe ml-cdn-lb --global
-
-gcloud compute backend-services list --global --format="table(name,enableCDN,cdnPolicy.cacheMode)"
-
-Part 3: CDN Performance Testing (5 minutes)
-```
-
-📊 Step 4: Test CDN Performance via Cloud Shell
-
-Get Load Balancer IP:
-
-```python
-
-LB_IP=$(gcloud compute addresses describe ml-cdn-ip --global --format="value(address)")
-echo "Load Balancer IP: $LB_IP"
-```
-
-Test CDN Cache Behavior:
-
-# First request (cache miss)
-```python
-echo "First request (cache miss):"
-curl -I http://$LB_IP/your-file.jpg | grep -E "(HTTP|Cache-Control|Age|X-Cache)"
-```
-
-# Second request (cache hit)
-```python
-echo "Second request (cache hit):"
-curl -I http://$LB_IP/your-file.jpg | grep -E "(HTTP|Cache-Control|Age|X-Cache)"
-```
-
-Test Global Distribution:
-
-```python
-curl -o /dev/null -s -w "Total time: %{time_total}s\n" http://$LB_IP/your-file.jpg
-```
-
-🌍 Step 5: Configure Custom Domain and SSL via Console
-1. **Reserve Global IP Address:**
-   - Go to **VPC Network > IP addresses**
-   - Click **Reserve external static address**
-   - Name: `ml-cdn-ssl-ip`
-   - Type: Global
-   - Click **Reserve**
-
-2. **Create SSL Certificate (Recommended: Google-managed):**
-   - Go to **Network Security > SSL certificates**
-   - Click **Create SSL certificate**
-   - Name: `ml-cdn-ssl-cert`
-   - Mode: Google-managed
-   - Domains: Enter your domain name
-   - Click **Create**
-3. **Update Load Balancer for HTTPS:**
-   - Go to **Network Services > Load balancing**
-   - Click on `ml-cdn-lb`
-   - Click **Edit**
-   - Add new frontend:
-     - Name: `ml-cdn-https-frontend`
-     - Protocol: HTTPS
-     - Port: 443
-     - IP address: `ml-cdn-ssl-ip`
-     - Certificate: `ml-cdn-ssl-cert`
-   - Click **Update**
 ---
+
+## 3. Hands-On Exploration Steps (Do Not Finalize Resources)
+
+### 10. Access Google Cloud Console
+
+- Navigate to [Google Cloud Console](https://console.cloud.google.com)
+
+- Select your project using the Project Picker
+
+### 11. Activate Cloud Shell or Utilize Cloud Workstations
+
+- Note: If you cannot launch the cloud shell or encounter warnings or errors, use cloud workstations.
+
+- Review the previous instructions for lab 2.3, task number 12 and 13. Note: If you did not delete the cloud workstation, continue by selecting start for the stopped workstation and then select launch.
+
+### 12. Review Edge Location Coverage
+
+- Visit [Google Cloud CDN Locations](https://cloud.google.com/cdn/docs/locations)
+
+- Note geographic distribution and latency zones
+
+### 13. Navigate to Cloud CDN
+
+- Search for **Cloud CDN**
+
+- Click **Add origin**
+
+- In the Define your backend bucket section, Select **Browse** from the Cloud Storage bucket field.
+
+- In the Select bucket side panel, select **groundeddiabetes**. Afterwards choose **Select**
+
+- In the Origin name field, enter a unique name.
+
+- Select **Next**
+
+- Select the **Create new load balancer for me** button
+
+- Enter a unique name in the **Load Balancer name** field.
+
+- Select **Next**
+
+- Review Cache Performance **Basic options**
+
+- Review cache key and TTL settings
+
+- Cancel configuration before saving
+
+### 15. Inspect Existing CDN-Enabled Backends (if available)
+
+- Run: gcloud compute backend-services list --filter="cdnPolicy.enable:true" --format="table(name,protocol,cdnPolicy.cacheMode)"
+
+4. Deliverables
+
+- Notes on CDN activation and configuration
+
+- Observations on cache behavior and latency
+
+Summary of edge location coverage and performance benefits
+
+5. Supplemental Materials
+
+- Runbook: runbooks/gcp-cloud-cdn-exploration.md
+
+- Playbook: playbooks/gcp-edge-network-strategy.md
+
+6. Notes and Warnings
+
+- Do not finalize load balancer or backend service creation during this lab
+
+- Cloud CDN only works with HTTP(S) load balancers
+
+- Edge locations are managed by Google and not directly configurable
+
+- Cache behavior may vary based on content type and headers
+
+7. Verification Source
+
+- Validated against Google Cloud CDN Documentation: [Google Cloud CDN & Edge ](https://cloud.google.com/cdn/docs/overview)
+
+---
+
+# 🧪 Lab 2.5: EC2 Instance Types and Sizing for ML Workloads
+
+**Objective:** Explore EC2 instance families optimized for machine learning workloads, focusing on sizing strategies, accelerator options, and pricing—without launching any instances.
+
+---
+
+## 1. Prerequisites
+
+- AWS Console access with read-only permissions
+
+- Familiarity with EC2 concepts and ML workload characteristics
+
+- No EC2 instance launch or billing-incurring actions required
+
+- AWS CLI installed in CloudShell or local environment
+
+---
+
+## 2. Theory Overview
+
+- ML workloads vary in compute, memory, and accelerator needs
+
+- EC2 instance families include general purpose, compute optimized, memory optimized, and accelerated computing
+
+- GPU-based instances (e.g., `p4`, `g5`) are ideal for training deep learning models
+
+- Inferentia-based instances (e.g., `inf1`) are optimized for inference
+
+- Sizing depends on model complexity, batch size, and training duration
+
+---
+
+## 3. Hands-On Exploration Steps (Do Not Launch Instances)
+
+### 10. Access AWS Console
+
+- Navigate to [AWS EC2 Dashboard](https://console.aws.amazon.com/ec2/)
+
+- Select **Instances > Launch Instance**
+
+- Cancel before finalizing any configuration
+
+### 11. Explore Instance Types
+
+- Go to **Instance Types** tab
+
+- Filter by **Accelerated Computing**
+
+- Review specs for `p4d`, `g5`, `inf1`, and `trn1`
+
+### 12. Use AWS CLI to List ML-Optimized Instances
+
+- Run:
+`aws ec2 describe-instance-types \
+  --filters Name=processor-info.supported-gpus,Values=*"NVIDIA"* \
+  --query 'InstanceTypes[*].InstanceType' \
+  --output table`
+
+13. Review Pricing and Regional Availability
+Visit AWS Pricing Calculator
+
+Compare hourly costs for GPU vs CPU instances
+
+Note availability zones for ML-optimized types
+
+14. Examine Instance Limits
+Go to Limits tab in EC2 Dashboard
+
+Check quotas for GPU instances in your region
+
+4. Deliverables
+Summary of instance types suitable for ML training vs inference
+
+Notes on pricing, accelerator support, and regional availability
+
+CLI output showing GPU-enabled instance types
+
+5. Supplemental Materials
+Runbook: runbooks/aws-ec2-ml-sizing.md
+
+Playbook: playbooks/aws-ml-instance-selection.md
+
+6. Notes and Warnings
+Do not launch EC2 instances during this lab
+
+GPU instances may have limited availability in some regions
+
+Pricing varies significantly based on accelerator type and tenancy
+
+Always validate instance compatibility with ML frameworks (e.g., TensorFlow, PyTorch)
+
+7. Verification Source
+Verified against AWS EC2 Instance Types and Accelerated Computing Guidance
+
+---
+
+# 🧪 Lab 2.6: S3 Storage Classes and Lifecycle Management
+
+**Duration:** 30 minutes
+**Objective:** Explore Amazon S3 storage tiers and lifecycle rule configurations to optimize cost for ML datasets—without finalizing resource creation.
+
+---
+
+## 1. Prerequisites
+
+- AWS Management Console access with S3 permissions
+
+- CloudShell or AWS CLI enabled
+
+- Sample bucket available or simulated for exploration
+
+- Familiarity with object storage concepts and cost optimization strategies
+
+- No lifecycle rule creation or bucket modification required
+
+---
+
+## 2. Theory Overview
+
+- Amazon S3 offers multiple storage classes tailored to access patterns and cost
+
+- Lifecycle rules automate transitions and deletions based on object age or tags
+
+- Storage Class Comparison:
+
+| Storage Class               | Use Case                          | Durability         | Availability | Retrieval Time     | Cost (per GB/month) |
+|----------------------------|-----------------------------------|--------------------|--------------|--------------------|----------------------|
+| Standard                   | Frequent access                   | 99.999999999%      | 99.99%       | Immediate          | High                 |
+| Intelligent-Tiering        | Unknown/changing access patterns  | 99.999999999%      | 99.9–99.99%  | Immediate          | Variable             |
+| Standard-IA                | Infrequent access                 | 99.999999999%      | 99.9%        | Immediate          | Lower                |
+| One Zone-IA                | Infrequent, single AZ             | 99.999999999%      | 99.5%        | Immediate          | Lowest IA            |
+| Glacier                    | Archival, occasional retrieval    | 99.999999999%      | N/A          | Minutes–hours      | Very low             |
+| Glacier Deep Archive       | Long-term archival                | 99.999999999%      | N/A          | Hours              | Lowest               |
+
+---
+
+## 3. Hands-On Exploration Steps (Do Not Finalize Resources)
+
+### 9. Access S3 Console
+
+- Navigate to [S3 Buckets](https://console.aws.amazon.com/s3)
+
+- Select or simulate a bucket (e.g., `ml-training-data`)
+
+### 10. Open the Management Tab
+
+- Click the bucket name
+
+- Navigate to **Management > Lifecycle rules**
+
+- Click **Create lifecycle rule**
+
+### 11. Explore Lifecycle Rule Configuration
+
+- Rule name: `ml-lifecycle-demo`
+
+- Filter: Prefix = `ml-data/`
+
+- Transitions:
+  - Move to Standard-IA after 30 days
+  - Move to Glacier after 90 days
+
+- Expiration: Delete after 365 days
+
+- Cancel before saving
+
+### 12. Review Pricing
+
+- Visit [S3 Pricing](https://aws.amazon.com/s3/pricing/)
+
+- Compare cost for storing 1 TB over 12 months across classes
+
+### 13. Inspect Existing Lifecycle Rules (Optional)
+
+- Run:
+`aws s3api get-bucket-lifecycle-configuration --bucket [YOUR_BUCKET_NAME]`
+
+4. Deliverables
+Summary of lifecycle rule configuration explored
+
+Pricing comparison table for storage classes
+
+CLI output of existing lifecycle rules (if applicable)
+
+5. Supplemental Materials
+Runbook: runbooks/aws-s3-lifecycle-exploration.md
+
+Playbook: playbooks/aws-storage-optimization-strategy.md
+
+6. Notes and Warnings
+Do not finalize lifecycle rule creation during this lab
+
+Lifecycle transitions may incur retrieval fees—review pricing carefully
+
+Use tags and prefixes to scope rules narrowly in production environments
+
+7. Verification Source
+Verified against Amazon S3 Lifecycle Configuration Documentation
+
+---
+
+# 🧪 Lab 2.7: Compute Engine Machine Types and Custom Configurations
+
+**Duration:** 30 minutes
+**Objective:** Explore Google Cloud Compute Engine machine families, sizing strategies, and custom VM configurations for ML workloads—without finalizing resource creation.
+
+---
+
+## 1. Prerequisites
+
+- Google Cloud Console access with Compute Engine permissions
+
+- Cloud Shell enabled
+
+- Familiarity with VM sizing and ML workload characteristics
+
+- Billing enabled (for simulation only—no resource creation)
+
+- No VM instance creation required
+
+---
+
+## 2. Theory Overview
+
+- Compute Engine offers predefined and custom machine types across multiple families
+
+- General-purpose families (E2, N2, N2D, N4) support custom configurations
+
+- Accelerator-optimized families (G2) support GPU workloads
+
+- Custom machine types allow fine-grained control over vCPU and memory
+
+- Extended memory is available for select series with pricing implications
+
+---
+
+## 3. Hands-On Exploration Steps (Do Not Finalize Resources)
+
+### 10. Access Compute Engine Console
+
+- Navigate to [Compute Engine > VM Instances](https://console.cloud.google.com/compute/instances)
+
+- Click **Create Instance** (do not complete creation)
+
+### 11. Explore Machine Type Options
+
+- Under **Machine configuration**, review:
+
+  - Series: E2, N2, N2D, N4
+
+  - Preset types: standard, highmem, highcpu
+
+  - Click **Customize** to manually set vCPU and memory
+
+### 12. Simulate ML Workload Sizing
+
+- Example configuration:
+
+  - vCPU: 8
+
+  - Memory: 64 GB
+
+  - Family: N2
+
+- Observe estimated monthly cost (do not proceed to deploy)
+
+### 13. Review GPU Options (Optional)
+
+- Under **CPU platform and GPU**, explore G2 family
+
+- Note GPU types: NVIDIA L4, A100
+
+- Do not attach GPUs or finalize instance
+
+### 14. Inspect via CLI (Optional)
+
+- Run:
+`gcloud compute machine-types list --zones=us-central1-a`
+
+4. Deliverables
+Summary of machine families and sizing options explored
+
+Screenshot or notes from custom configuration simulation
+
+CLI output of available machine types (if applicable)
+
+5. Supplemental Materials
+Runbook: runbooks/gcp-compute-machine-types.md
+
+Playbook: playbooks/gcp-ml-instance-sizing-strategy.md
+
+6. Notes and Warnings
+Do not finalize VM creation during this lab
+
+Custom configurations may affect pricing and availability
+
+GPU instances require quota and billing setup—explore only
+
+7. Verification Source
+Verified against Google Cloud Compute Engine Documentation
+
+---
+
+# 🧪 Lab 2.8: Cloud Storage Classes and Object Lifecycle Management
+
+**Duration:** 30 minutes
+**Objective:** Explore Google Cloud Storage classes and lifecycle rule configurations to optimize cost and retention for ML datasets—without finalizing resource creation.
+
+---
+
+## 1. Prerequisites
+
+- Google Cloud Console access with Storage permissions
+
+- Cloud Shell enabled
+
+- Familiarity with object storage and data retention strategies
+
+- Billing enabled (for simulation only—no resource creation)
+
+- No lifecycle rule creation required
+
+---
+
+## 2. Theory Overview
+
+- Cloud Storage offers multiple classes based on access frequency and availability
+
+- Storage classes include: Standard, Nearline, Coldline, Archive
+
+- Each class has minimum storage durations and retrieval fees
+
+- Lifecycle rules automate transitions and deletions based on object age or conditions
+
+- Actions include: SetStorageClass, Delete, AbortIncompleteMultipartUpload
+
+---
+
+## 3. Hands-On Exploration Steps (Do Not Finalize Resources)
+
+### 10. Access Cloud Storage Console
+
+- Navigate to [Cloud Storage > Buckets](https://console.cloud.google.com/storage)
+
+- Select or simulate a bucket (e.g., `ml-datasets`)
+
+### 11. Open Lifecycle Rules Panel
+
+- Click the bucket name
+
+- Go to **Lifecycle** tab
+
+- Click **+ Add a rule**
+
+### 12. Explore Lifecycle Rule Configuration
+
+- Condition: Age > 30 days
+
+- Action: Change storage class to Nearline
+
+- Add second rule:
+
+  - Age > 90 days → Coldline
+
+  - Age > 365 days → Delete
+
+- Cancel before saving
+
+### 13. Review Pricing
+
+- Visit [Cloud Storage Pricing](https://cloud.google.com/storage/pricing)
+
+- Compare cost for storing 1 TB over 12 months across classes
+
+### 14. Inspect via CLI (Optional)
+
+- Run:
+`gsutil lifecycle get gs://[YOUR_BUCKET_NAME]`
+
+4. Deliverables
+Summary of lifecycle rule configuration explored
+
+Pricing comparison table for storage classes
+
+CLI output of existing lifecycle rules (if applicable)
+
+5. Supplemental Materials
+Runbook: runbooks/gcp-storage-lifecycle-exploration.md
+
+Playbook: playbooks/gcp-storage-optimization-strategy.md
+
+6. Notes and Warnings
+Do not finalize lifecycle rule creation during this lab
+
+Minimum storage durations may incur early deletion fees
+
+Lifecycle rules should be scoped carefully using conditions
+
+7. Verification Source
+Verified against Google Cloud Storage Lifecycle Documentation
