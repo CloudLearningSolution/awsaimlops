@@ -86,6 +86,7 @@ def train_model_op(
     from sklearn.linear_model import LogisticRegression
     import logging
     import os
+    import shutil
 
     FEATURE_COLUMNS = [
         "Pregnancies", "PlasmaGlucose", "DiastolicBloodPressure",
@@ -103,9 +104,12 @@ def train_model_op(
     # Save as model.joblib for Vertex AI compatibility
     model_path = os.path.join(os.path.dirname(output_model.path), "model.joblib")
     joblib.dump(model, model_path)
+    # Also copy to output_model.path for downstream components
+    shutil.copy(model_path, output_model.path)
     logging.info(
-        "[DEV] Model trained and stored at: %s",
-        model_path
+        "[DEV] Model trained and stored at: %s and copied to: %s",
+        model_path,
+        output_model.path
     )
 
 
