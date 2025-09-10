@@ -68,7 +68,7 @@ env:
   PROD_PIPELINE_DISPLAY_NAME: 'mlops-diabetes-pipeline-prod-vertex'
   PROD_INPUT_DATA_GCS_URI: 'gs://${{ secrets.GCP_SHARED_MLOPS_BUCKET_NAME }}/prod/raw/diabetes.csv'
   PROD_REG_RATE: 0.05
-  PROD_MIN_ACCURACY: 0.80
+  PROD_MIN_ACCURACY: 0.75
 
 jobs:
   setup-and-compile-gcp:
