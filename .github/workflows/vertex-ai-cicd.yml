@@ -277,3 +277,39 @@ jobs:
             --parameter-values-json "$PARAMS_JSON" \
             --labels-json "$LABELS_JSON" \
             --enable-caching
+
+  deploy-model:
+    name: Deploy Model to Endpoint
+    runs-on: ubuntu-latest
+    needs: train-prod-vertex
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4.1.7
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install -r src/requirements.txt
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2.1.3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ secrets.GCP_WORKLOAD_IDENTITY_POOL_ID }}/providers/${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER_ID }}'
+          service_account: ${{ secrets.GHA_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Deploy Model to Endpoint
+        run: |
+          python src/deploy_model.py \
+            --project-id "${{ env.GCP_PROJECT_ID }}" \
+            --region "${{ env.GCP_REGION }}" \
+            --model-display-name "${{ env.MODEL_DISPLAY_NAME }}" \
+            --endpoint-display-name "diabetes-prediction-endpoint" \
+            --test-endpoint
