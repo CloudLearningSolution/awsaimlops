@@ -159,11 +159,16 @@ def evaluate_model_op(
 @component(
     base_image=BASE_IMAGE
 )
-def model_approved_op():
+def model_approved_op(model_accuracy: float, model: Input[Model]):
     import logging
     logging.basicConfig(level=logging.INFO)
     logging.info(
-        "[DEV] ✅ Model approved. Proceeding with registration."
+        "[DEV] ✅ Model approved with accuracy: %.4f",
+        model_accuracy
+    )
+    logging.info(
+        "[DEV] Ready for registration from: %s",
+        model.uri
     )
 
 
@@ -259,7 +264,10 @@ def dev_diabetes_pipeline(
         eval_task.outputs["Output"] >= min_accuracy,
         name="pass-accuracy-threshold"
     ):
-        approved_task = model_approved_op().set_cpu_limit("1").set_memory_limit("3840Mi")
+        approved_task = model_approved_op(
+            model_accuracy=eval_task.outputs["Output"],
+            model=train_task.outputs["output_model"]
+        ).set_cpu_limit("1").set_memory_limit("3840Mi")
         approved_task.after(eval_task)
 
         register_task = register_model_op(

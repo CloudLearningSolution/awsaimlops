@@ -251,6 +251,22 @@ jobs:
           name: compiled-vertex-pipelines
           path: ./compiled-pipelines
 
+      - name: Find parent model for versioning
+        id: find_parent_model
+        run: |
+          MODEL_RESOURCE_NAME=$(gcloud ai models list \
+            --region=${{ env.GCP_REGION }} \
+            --filter="displayName=${{ env.MODEL_DISPLAY_NAME }}" \
+            --format="value(name)" \
+            --sort-by=~createTime \
+            --limit=1)
+          echo "PARENT_MODEL_NAME=$MODEL_RESOURCE_NAME" >> $GITHUB_OUTPUT
+          if [[ -z "$MODEL_RESOURCE_NAME" ]]; then
+            echo "No parent model found. A new model will be registered."
+          else
+            echo "Found parent model for versioning: $MODEL_RESOURCE_NAME"
+          fi
+
       - name: Submit Prod Vertex AI Job
         run: |
           PIPELINE_JOB_ID="prod-$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
@@ -261,7 +277,8 @@ jobs:
             --arg input_raw_data_gcs_uri "${{ env.PROD_INPUT_DATA_GCS_URI }}" \
             --arg reg_rate "${{ env.PROD_REG_RATE }}" \
             --arg min_accuracy "${{ env.PROD_MIN_ACCURACY }}" \
-            '{project_id: $project_id, region: $region, model_display_name: $model_display_name, input_raw_data_gcs_uri: $input_raw_data_gcs_uri, reg_rate: ($reg_rate|tonumber), min_accuracy: ($min_accuracy|tonumber)}')
+            --arg parent_model "${{ steps.find_parent_model.outputs.PARENT_MODEL_NAME }}" \
+            '{project_id: $project_id, region: $region, model_display_name: $model_display_name, input_raw_data_gcs_uri: $input_raw_data_gcs_uri, reg_rate: ($reg_rate|tonumber), min_accuracy: ($min_accuracy|tonumber), parent_model: $parent_model}')
           LABELS_JSON=$(jq -n \
             --arg commit_sha "${GITHUB_SHA::7}" \
             --arg trigger_event "${GITHUB_EVENT_NAME}" \
