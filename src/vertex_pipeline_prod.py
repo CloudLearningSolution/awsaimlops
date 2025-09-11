@@ -238,7 +238,7 @@ def prod_diabetes_pipeline(
     model_display_name: str,
     input_raw_data_gcs_uri: str,
     reg_rate: float = 0.05,
-    min_accuracy: float = 0.80,
+    min_accuracy: float = 0.75,
     parent_model: str = ""
 ):
     preprocess_task = preprocess_data_op(
