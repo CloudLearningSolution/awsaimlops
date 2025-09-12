@@ -153,31 +153,10 @@ class ModelDeploymentManager:
         max_replica_count: int = 3,
         traffic_percentage: int = 100
     ) -> Dict:
-        """
-        Deploy a registered model to a Vertex AI endpoint with specified configuration.
-
-        This method handles the complete deployment process including:
-        - Resource allocation and scaling configuration
-        - Traffic splitting for gradual rollouts
-        - Health checks and deployment validation
-
-        Args:
-            model: The registered model to deploy
-            endpoint: Target endpoint for deployment
-            deployment_name: Name for this specific deployment
-            machine_type: Compute instance type (default: n1-standard-2)
-            min_replica_count: Minimum number of replicas (default: 1)
-            max_replica_count: Maximum number of replicas for auto-scaling (default: 3)
-            traffic_percentage: Percentage of traffic to route to this deployment (default: 100)
-
-        Returns:
-            Dict: Deployment details including resource allocation and status
-        """
         self.logger.info(f"Deploying model {model.display_name} to endpoint {endpoint.display_name}")
 
-        # Configure deployment parameters for production readiness
-        self.logger.info("Starting model deployment...")
-        deployed_model = endpoint.deploy(
+        # In aiplatform==1.56.0, endpoint.deploy() returns None on success
+        endpoint.deploy(
             model=model,
             deployed_model_display_name=deployment_name,
             machine_type=machine_type,
@@ -187,22 +166,32 @@ class ModelDeploymentManager:
             sync=True,  # Wait for deployment to complete
         )
 
-        # Validate deployment success
-        if deployed_model:
-            self.logger.info("Model deployment completed successfully")
+        # Deployment completed successfully if no exception was raised
+        self.logger.info("Model deployment completed successfully")
 
-            deployment_details = {
-                "endpoint_id": endpoint.name,
-                "deployed_model_id": deployed_model.id,
-                "machine_type": machine_type,
-                "replica_count": f"{min_replica_count}-{max_replica_count}",
-                "traffic_percentage": traffic_percentage,
-                "status": "deployed"
-            }
+        # Find the deployed model in the endpoint to get its ID
+        deployed_model_id = None
+        try:
+            # Refresh endpoint to get latest deployed models
+            endpoint._sync_gca_resource()
+            for deployed_model in endpoint._gca_resource.deployed_models:
+                if deployed_model.display_name == deployment_name:
+                    deployed_model_id = deployed_model.id
+                    break
+        except Exception as e:
+            self.logger.warning(f"Could not retrieve deployed model ID: {e}")
+            deployed_model_id = "unknown"
 
-            return deployment_details
-        else:
-            raise RuntimeError("Model deployment failed - no deployed model returned")
+        deployment_details = {
+            "endpoint_id": endpoint.name,
+            "deployed_model_id": deployed_model_id,
+            "machine_type": machine_type,
+            "replica_count": f"{min_replica_count}-{max_replica_count}",
+            "traffic_percentage": traffic_percentage,
+            "status": "deployed"
+        }
+
+        return deployment_details
 
     def test_endpoint_prediction(
         self,
