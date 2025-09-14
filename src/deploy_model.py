@@ -257,9 +257,9 @@ def main():
             max_replica_count=args.max_replicas
         )
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("🎉 MODEL DEPLOYMENT COMPLETED SUCCESSFULLY")
-        print("="*60)
+        print("=" * 60)
         print(f"Model: {model.display_name}")
         print(f"Endpoint: {endpoint.display_name}")
         print(f"Machine Type: {deployment_details['machine_type']}")
@@ -283,15 +283,15 @@ def main():
                 print("❌ Endpoint test failed")
 
         endpoint_info = deployment_manager.get_endpoint_info(endpoint)
-        print("\n" + "-"*40)
+        print("\n" + "-" * 40)
         print("ENDPOINT INFORMATION")
-        print("-"*40)
+        print("-" * 40)
         print(f"Endpoint URL: {endpoint.resource_name}")
         print(f"Total Deployed Models: {len(endpoint_info['deployed_models'])}")
 
-        print("\n" + "-"*40)
+        print("\n" + "-" * 40)
         print("NEXT STEPS")
-        print("-"*40)
+        print("-" * 40)
         print("1. Monitor endpoint performance in the Vertex AI console")
         print("2. Set up alerting for endpoint health and latency")
         print("3. Configure auto-scaling based on traffic patterns")
