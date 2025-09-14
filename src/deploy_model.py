@@ -42,20 +42,9 @@ class ModelDeploymentManager:
     """
 
     def __init__(self, project_id: str, region: str):
-        """
-        Initialize the deployment manager with GCP project details.
-
-        Args:
-            project_id: Google Cloud project ID
-            region: GCP region for Vertex AI resources (e.g., 'us-central1')
-        """
         self.project_id = project_id
         self.region = region
-
-        # Initialize Vertex AI SDK with project and region
         aiplatform.init(project=project_id, location=region)
-
-        # Configure logging for detailed operation tracking
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
@@ -63,73 +52,31 @@ class ModelDeploymentManager:
         self.logger = logging.getLogger(__name__)
 
     def find_latest_model(self, model_display_name: str) -> aiplatform.Model:
-        """
-        Locate the most recently registered model by display name.
-
-        This method searches the Vertex AI Model Registry for models matching
-        the specified display name and returns the latest version based on
-        creation timestamp.
-
-        Args:
-            model_display_name: Display name of the registered model to find
-
-        Returns:
-            aiplatform.Model: The latest version of the specified model
-
-        Raises:
-            ValueError: If no models found with the specified name
-        """
         self.logger.info(f"Searching for model: {model_display_name}")
-
-        # Query all models and filter by display name
         models = aiplatform.Model.list(filter=f'display_name="{model_display_name}"')
-
         if not models:
             raise ValueError(
                 f"No models found with display name: {model_display_name}. "
                 f"Ensure the model is registered in the Model Registry."
             )
-
-        # Sort by creation time to get the latest version
         latest_model = max(models, key=lambda m: m.create_time)
-
         self.logger.info(
             f"Found latest model: {latest_model.display_name} "
             f"(Resource: {latest_model.resource_name}, "
             f"Created: {latest_model.create_time})"
         )
-
         return latest_model
 
     def create_or_get_endpoint(self, endpoint_display_name: str) -> aiplatform.Endpoint:
-        """
-        Create a new endpoint or retrieve an existing one by name.
-
-        This method implements an idempotent endpoint creation strategy:
-        - If an endpoint with the specified name exists, it returns that endpoint
-        - If no endpoint exists, it creates a new one
-
-        Args:
-            endpoint_display_name: Display name for the endpoint
-
-        Returns:
-            aiplatform.Endpoint: Either the existing or newly created endpoint
-        """
         self.logger.info(f"Looking for existing endpoint: {endpoint_display_name}")
-
-        # Search for existing endpoints with the specified name
         existing_endpoints = aiplatform.Endpoint.list(
             filter=f'display_name="{endpoint_display_name}"'
         )
-
         if existing_endpoints:
             endpoint = existing_endpoints[0]
             self.logger.info(f"Using existing endpoint: {endpoint.resource_name}")
             return endpoint
-
-        # Create new endpoint if none exists
         self.logger.info(f"Creating new endpoint: {endpoint_display_name}")
-
         endpoint = aiplatform.Endpoint.create(
             display_name=endpoint_display_name,
             description=f"Endpoint for {endpoint_display_name} diabetes prediction model",
@@ -139,7 +86,6 @@ class ModelDeploymentManager:
                 "managed_by": "vertex_ai_pipeline"
             }
         )
-
         self.logger.info(f"Created endpoint: {endpoint.resource_name}")
         return endpoint
 
@@ -154,8 +100,6 @@ class ModelDeploymentManager:
         traffic_percentage: int = 100
     ) -> Dict:
         self.logger.info(f"Deploying model {model.display_name} to endpoint {endpoint.display_name}")
-
-        # In aiplatform==1.56.0, endpoint.deploy() returns None on success
         endpoint.deploy(
             model=model,
             deployed_model_display_name=deployment_name,
@@ -163,16 +107,11 @@ class ModelDeploymentManager:
             min_replica_count=min_replica_count,
             max_replica_count=max_replica_count,
             traffic_percentage=traffic_percentage,
-            sync=True,  # Wait for deployment to complete
+            sync=True,
         )
-
-        # Deployment completed successfully if no exception was raised
         self.logger.info("Model deployment completed successfully")
-
-        # Find the deployed model in the endpoint to get its ID
         deployed_model_id = None
         try:
-            # Refresh endpoint to get latest deployed models
             endpoint._sync_gca_resource()
             for deployed_model in endpoint._gca_resource.deployed_models:
                 if deployed_model.display_name == deployment_name:
@@ -181,7 +120,6 @@ class ModelDeploymentManager:
         except Exception as e:
             self.logger.warning(f"Could not retrieve deployed model ID: {e}")
             deployed_model_id = "unknown"
-
         deployment_details = {
             "endpoint_id": endpoint.name,
             "deployed_model_id": deployed_model_id,
@@ -190,69 +128,30 @@ class ModelDeploymentManager:
             "traffic_percentage": traffic_percentage,
             "status": "deployed"
         }
-
         return deployment_details
 
     def test_endpoint_prediction(
         self,
         endpoint: aiplatform.Endpoint,
-        test_instances: List[Dict]
+        test_instances: List[List]
     ) -> Tuple[List, bool]:
-        """
-        Test the deployed endpoint with sample diabetes prediction data.
-
-        This method validates that the endpoint is responding correctly by:
-        - Sending sample prediction requests
-        - Validating response format and content
-        - Checking prediction confidence scores
-
-        Args:
-            endpoint: The endpoint to test
-            test_instances: List of test data instances for prediction
-
-        Returns:
-            Tuple[List, bool]: (prediction_results, test_passed)
-        """
         self.logger.info("Testing endpoint with sample diabetes data...")
-
         try:
-            # Send prediction request to the endpoint
             predictions = endpoint.predict(instances=test_instances)
-
-            # Validate prediction results
             if predictions and predictions.predictions:
                 self.logger.info("Endpoint responding correctly")
-
-                # Log sample predictions for verification
-                for i, prediction in enumerate(predictions.predictions[:3]):  # Show first 3
+                for i, prediction in enumerate(predictions.predictions[:3]):
                     self.logger.info(f"Sample prediction {i+1}: {prediction}")
-
                 return predictions.predictions, True
             else:
                 self.logger.error("Endpoint returned empty predictions")
                 return [], False
-
         except Exception as e:
             self.logger.error(f"Endpoint test failed: {str(e)}")
             return [], False
 
     def get_endpoint_info(self, endpoint: aiplatform.Endpoint) -> Dict:
-        """
-        Retrieve comprehensive information about the deployed endpoint.
-
-        This method provides detailed endpoint metadata including:
-        - Deployment status and health
-        - Resource allocation and scaling configuration
-        - Traffic distribution across model versions
-
-        Args:
-            endpoint: The endpoint to inspect
-
-        Returns:
-            Dict: Comprehensive endpoint information
-        """
         self.logger.info(f"Retrieving endpoint information: {endpoint.display_name}")
-
         endpoint_info = {
             "endpoint_name": endpoint.display_name,
             "endpoint_id": endpoint.name,
@@ -261,9 +160,6 @@ class ModelDeploymentManager:
             "project_id": self.project_id,
             "deployed_models": []
         }
-
-        # Get information about all deployed models on this endpoint
-        # Note: Using endpoint._gca_resource.deployed_models for compatibility with aiplatform==1.56.0
         for deployed_model in endpoint._gca_resource.deployed_models:
             model_info = {
                 "model_display_name": deployed_model.display_name,
@@ -271,77 +167,27 @@ class ModelDeploymentManager:
                 "machine_type": deployed_model.dedicated_resources.machine_spec.machine_type,
                 "min_replicas": deployed_model.dedicated_resources.min_replica_count,
                 "max_replicas": deployed_model.dedicated_resources.max_replica_count,
-                "traffic_percentage": deployed_model.traffic_percentage
+                "deployed_model_id": deployed_model.id
             }
             endpoint_info["deployed_models"].append(model_info)
-
         return endpoint_info
 
 
-def create_sample_test_data() -> List[Dict]:
+def create_sample_test_data() -> List[List]:
     """
     Generate sample diabetes prediction test data for endpoint validation.
-
-    This function creates realistic test instances that match the expected
-    input format for the diabetes prediction model based on the feature columns
-    defined in your pipeline files.
-
-    Feature columns from your pipelines:
-    - Pregnancies, PlasmaGlucose, DiastolicBloodPressure, TricepsThickness
-    - SerumInsulin, BMI, DiabetesPedigree, Age
-
     Returns:
-        List[Dict]: Sample test instances for model prediction
+        List[List]: Sample test instances as arrays of feature values
     """
     sample_data = [
-        {
-            "Pregnancies": 6,
-            "PlasmaGlucose": 148,
-            "DiastolicBloodPressure": 72,
-            "TricepsThickness": 35,
-            "SerumInsulin": 0,
-            "BMI": 33.6,
-            "DiabetesPedigree": 0.627,
-            "Age": 50
-        },
-        {
-            "Pregnancies": 1,
-            "PlasmaGlucose": 85,
-            "DiastolicBloodPressure": 66,
-            "TricepsThickness": 29,
-            "SerumInsulin": 0,
-            "BMI": 26.6,
-            "DiabetesPedigree": 0.351,
-            "Age": 31
-        },
-        {
-            "Pregnancies": 8,
-            "PlasmaGlucose": 183,
-            "DiastolicBloodPressure": 64,
-            "TricepsThickness": 0,
-            "SerumInsulin": 0,
-            "BMI": 23.3,
-            "DiabetesPedigree": 0.672,
-            "Age": 32
-        }
+        [6, 148, 72, 35, 0, 33.6, 0.627, 50],
+        [1, 85, 66, 29, 0, 26.6, 0.351, 31],
+        [8, 183, 64, 0, 0, 23.3, 0.672, 32]
     ]
-
     return sample_data
 
 
 def main():
-    """
-    Main execution function that orchestrates the complete model deployment process.
-
-    This function coordinates all deployment steps:
-    1. Parse command-line arguments
-    2. Initialize the deployment manager
-    3. Find the latest registered model
-    4. Create or retrieve the target endpoint
-    5. Deploy the model with specified configuration
-    6. Test the deployment with sample data
-    7. Display deployment summary and next steps
-    """
     parser = argparse.ArgumentParser(
         description="Deploy a registered Vertex AI model to an endpoint"
     )
@@ -396,19 +242,12 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Initialize deployment manager
         deployment_manager = ModelDeploymentManager(
             project_id=args.project_id,
             region=args.region
         )
-
-        # Step 1: Find the latest registered model
         model = deployment_manager.find_latest_model(args.model_display_name)
-
-        # Step 2: Create or get the target endpoint
         endpoint = deployment_manager.create_or_get_endpoint(args.endpoint_display_name)
-
-        # Step 3: Deploy the model to the endpoint
         deployment_details = deployment_manager.deploy_model_to_endpoint(
             model=model,
             endpoint=endpoint,
@@ -427,17 +266,14 @@ def main():
         print(f"Replica Range: {deployment_details['replica_count']}")
         print(f"Traffic Allocation: {deployment_details['traffic_percentage']}%")
 
-        # Step 4: Test the endpoint if requested
         if args.test_endpoint:
-            print("\n" + "-"*40)
+            print("\n" + "-" * 40)
             print("TESTING ENDPOINT")
-            print("-"*40)
-
+            print("-" * 40)
             test_data = create_sample_test_data()
             predictions, test_passed = deployment_manager.test_endpoint_prediction(
                 endpoint, test_data
             )
-
             if test_passed:
                 print("✅ Endpoint test passed successfully")
                 print("Sample predictions:")
@@ -446,9 +282,7 @@ def main():
             else:
                 print("❌ Endpoint test failed")
 
-        # Step 5: Display endpoint information
         endpoint_info = deployment_manager.get_endpoint_info(endpoint)
-
         print("\n" + "-"*40)
         print("ENDPOINT INFORMATION")
         print("-"*40)
