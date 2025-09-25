@@ -31,6 +31,7 @@ PIPELINE_DESCRIPTION = (
 BASE_IMAGE = "python:3.9"
 REQUIREMENTS_PATH = "src/requirements.txt"
 
+
 # ------------------------------------------------------------------------------
 # Component: preprocess_data_op
 # ------------------------------------------------------------------------------
@@ -79,6 +80,7 @@ def preprocess_data_op(
         output_train_data.path,
         output_test_data.path,
     )
+
 
 # ------------------------------------------------------------------------------
 # Component: train_model_op
@@ -130,6 +132,7 @@ def train_model_op(
         output_model.path
     )
 
+
 # ------------------------------------------------------------------------------
 # Component: evaluate_model_op
 # ------------------------------------------------------------------------------
@@ -177,6 +180,7 @@ def evaluate_model_op(
     )
     return accuracy
 
+
 # ------------------------------------------------------------------------------
 # Component: model_approved_op
 # ------------------------------------------------------------------------------
@@ -195,6 +199,7 @@ def model_approved_op(model_accuracy: float, model: Input[Model]):
         "[DEV] Ready for registration from: %s",
         model.uri
     )
+
 
 # ------------------------------------------------------------------------------
 # Component: register_model_op
@@ -245,6 +250,7 @@ def register_model_op(
         model.resource_name
     )
 
+
 # ------------------------------------------------------------------------------
 # Component: model_rejected_op
 # ------------------------------------------------------------------------------
@@ -263,6 +269,7 @@ def model_rejected_op(model_accuracy: float, min_accuracy: float):
     raise ValueError(
         "Model accuracy does not meet minimum development threshold."
     )
+
 
 # ------------------------------------------------------------------------------
 # Pipeline: dev_diabetes_pipeline

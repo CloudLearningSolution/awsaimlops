@@ -32,11 +32,14 @@ PIPELINE_DESCRIPTION = (
 BASE_IMAGE = "python:3.9"
 REQUIREMENTS_PATH = "src/requirements.txt"
 
+
 # ------------------------------------------------------------------------------
 # Component: preprocess_data_op
 # ------------------------------------------------------------------------------
 # Downloads raw CSV data from GCS, splits into train/test sets, and saves
 # outputs for downstream steps. Used for production data preprocessing.
+
+
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -81,11 +84,14 @@ def preprocess_data_op(
         output_test_data.path,
     )
 
+
 # ------------------------------------------------------------------------------
 # Component: train_model_op
 # ------------------------------------------------------------------------------
 # Trains a logistic regression model using the training data and saves the
 # model artifact for downstream evaluation and registration.
+
+
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -131,11 +137,14 @@ def train_model_op(
         output_model.path
     )
 
+
 # ------------------------------------------------------------------------------
 # Component: evaluate_model_op
 # ------------------------------------------------------------------------------
 # Evaluates the trained model on the test set, logs accuracy, and returns
 # accuracy for conditional pipeline logic.
+
+
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -178,10 +187,13 @@ def evaluate_model_op(
     )
     return accuracy
 
+
 # ------------------------------------------------------------------------------
 # Component: model_approved_op
 # ------------------------------------------------------------------------------
 # Logs approval message if model accuracy meets threshold. Used for audit trail.
+
+
 @component(
     base_image=BASE_IMAGE
 )
@@ -197,11 +209,14 @@ def model_approved_op(model_accuracy: float, model: Input[Model]):
         model.uri
     )
 
+
 # ------------------------------------------------------------------------------
 # Component: register_model_op
 # ------------------------------------------------------------------------------
 # Registers the model in Vertex AI Model Registry if approved. Supports
 # versioning under a parent model if provided.
+
+
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -247,10 +262,13 @@ def register_model_op(
         model.resource_name
     )
 
+
 # ------------------------------------------------------------------------------
 # Component: model_rejected_op
 # ------------------------------------------------------------------------------
 # Logs rejection message and raises error if model accuracy is below threshold.
+
+
 @component(
     base_image=BASE_IMAGE
 )
@@ -266,11 +284,14 @@ def model_rejected_op(model_accuracy: float, min_accuracy: float):
         "Model accuracy does not meet minimum production threshold."
     )
 
+
 # ------------------------------------------------------------------------------
 # Pipeline: prod_diabetes_pipeline
 # ------------------------------------------------------------------------------
 # Orchestrates all pipeline steps. Registers model only if accuracy meets
 # threshold, otherwise rejects. Supports parent model versioning.
+
+
 @pipeline(name=PIPELINE_NAME, description=PIPELINE_DESCRIPTION)
 def prod_diabetes_pipeline(
     project_id: str,
