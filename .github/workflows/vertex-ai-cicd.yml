@@ -1,11 +1,23 @@
+# Vertex AI CI/CD - Train Model (Dev & Prod)
+# ------------------------------------------
+# This workflow automates the ML pipeline for both development and production
+# using Google Cloud Vertex AI. It is triggered by pushes to 'main', pull
+# requests to 'main', or manual invocation. The workflow covers pipeline
+# compilation, model training, approval gating, and deployment.
+#
+# All comments and documentation lines are kept <= 100 characters for .flake8.
+
 name: Vertex AI CI/CD - Train Model (Dev & Prod)
 
-# This GitHub Actions workflow is triggered on the following events:
-# - A push to the 'main' branch.
-# - A pull request targeting the 'main' branch.
+# ------------------------------------------------------------------------------
+# Workflow Triggers
+# ------------------------------------------------------------------------------
+# The workflow runs on:
+# - Pushes to the 'main' branch.
+# - Pull requests targeting 'main'.
 # - Manual invocation via 'workflow_dispatch'.
-#
-# Uncomment the second 'branches' line under 'push' to also trigger on any branch matching 'feature/*'.
+# Uncomment the second 'branches' line under 'push' to also trigger on branches
+# matching 'feature/*'.
 on:
   push:
     branches: [main]
@@ -13,40 +25,31 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-  # ------------------------------------------------------------------------------
-  # Environment Variables Documentation
-  #
-  # This section defines environment variables used throughout the Vertex AI CI/CD
-  # workflow for both development and production pipelines.
-  #
-  # Common Variables:
-  #   - GCP_PROJECT_ID: Google Cloud project identifier (from secrets).
-  #   - GCP_REGION: Google Cloud region for Vertex AI resources.
-  #   - MODEL_DISPLAY_NAME: Display name for the deployed model.
-  #   - SHARED_MLOPS_BUCKET_NAME: GCS bucket for shared MLOps assets (from secrets).
-  #   - PIPELINE_RUNS_GCS_ROOT_BASE: Root GCS path for pipeline run artifacts.
-  #   - VERTEX_PIPELINE_SERVICE_ACCOUNT: Service account email for Vertex AI pipelines.
-  #
-  # Development Pipeline Variables:
-  #   - DEV_PIPELINE_PYTHON_FILE: Path to the development pipeline Python source.
-  #   - DEV_PIPELINE_COMPILED_FILE: Output file for compiled development pipeline.
-  #   - DEV_PIPELINE_DISPLAY_NAME: Display name for the development pipeline.
-  #   - DEV_INPUT_DATA_GCS_URI: GCS URI for development input data.
-  #   - DEV_REG_RATE: Regularization rate for development model training.
-  #   - DEV_MIN_ACCURACY: Minimum accuracy threshold for development model.
-  #
-  # Production Pipeline Variables:
-  #   - PROD_PIPELINE_PYTHON_FILE: Path to the production pipeline Python source.
-  #   - PROD_PIPELINE_COMPILED_FILE: Output file for compiled production pipeline.
-  #   - PROD_PIPELINE_DISPLAY_NAME: Display name for the production pipeline.
-  #   - PROD_INPUT_DATA_GCS_URI: GCS URI for production input data.
-  #   - PROD_REG_RATE: Regularization rate for production model training.
-  #   - PROD_MIN_ACCURACY: Minimum accuracy threshold for production model.
-  #
-  # Secrets:
-  #   - All variables referencing `${{ secrets.* }}` are securely injected from
-  #     GitHub Actions secrets and should be configured in the repository settings.
-  # ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Environment Variables Documentation
+# ------------------------------------------------------------------------------
+# These variables are used throughout the workflow for GCP and pipeline config.
+# - GCP_PROJECT_ID: Google Cloud project identifier (from secrets).
+# - GCP_REGION: Region for Vertex AI resources.
+# - MODEL_DISPLAY_NAME: Display name for the deployed model.
+# - SHARED_MLOPS_BUCKET_NAME: GCS bucket for shared MLOps assets (from secrets).
+# - PIPELINE_RUNS_GCS_ROOT_BASE: Root GCS path for pipeline run artifacts.
+# - VERTEX_PIPELINE_SERVICE_ACCOUNT: Service account email for Vertex AI pipelines.
+# - DEV_PIPELINE_PYTHON_FILE: Path to dev pipeline Python source.
+# - DEV_PIPELINE_COMPILED_FILE: Output file for compiled dev pipeline.
+# - DEV_PIPELINE_DISPLAY_NAME: Display name for dev pipeline.
+# - DEV_INPUT_DATA_GCS_URI: GCS URI for dev input data.
+# - DEV_REG_RATE: Regularization rate for dev model training.
+# - DEV_MIN_ACCURACY: Minimum accuracy threshold for dev model.
+# - PROD_PIPELINE_PYTHON_FILE: Path to prod pipeline Python source.
+# - PROD_PIPELINE_COMPILED_FILE: Output file for compiled prod pipeline.
+# - PROD_PIPELINE_DISPLAY_NAME: Display name for prod pipeline.
+# - PROD_INPUT_DATA_GCS_URI: GCS URI for prod input data.
+# - PROD_REG_RATE: Regularization rate for prod model training.
+# - PROD_MIN_ACCURACY: Minimum accuracy threshold for prod model.
+# - All variables referencing `${{ secrets.* }}` are injected from GitHub secrets.
+# ------------------------------------------------------------------------------
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -70,11 +73,17 @@ env:
   PROD_REG_RATE: 0.05
   PROD_MIN_ACCURACY: 0.75
 
+# ------------------------------------------------------------------------------
+# Job: setup-and-compile-gcp
+# ------------------------------------------------------------------------------
+# This job sets up GCP authentication, installs dependencies, and compiles
+# both dev and prod Vertex AI pipelines. It also audits CPU limits and uploads
+# compiled pipeline files as artifacts for downstream jobs.
 jobs:
   setup-and-compile-gcp:
     name: Setup GCP & Compile Vertex AI Pipelines
     runs-on: ubuntu-latest
-    environment: development  # or production, as appropriate
+    environment: development
     outputs:
       dev_pipeline_path: ${{ steps.compile.outputs.dev_pipeline_path_abs }}
       prod_pipeline_path: ${{ steps.compile.outputs.prod_pipeline_path_abs }}
@@ -133,11 +142,16 @@ jobs:
             ${{ env.DEV_PIPELINE_COMPILED_FILE }}
             ${{ env.PROD_PIPELINE_COMPILED_FILE }}
 
+# ------------------------------------------------------------------------------
+# Job: train-dev-vertex
+# ------------------------------------------------------------------------------
+# This job trains the model in Vertex AI using the development pipeline.
+# It downloads the compiled pipeline artifact, submits the job, and passes
+# parameters and labels for tracking.
   train-dev-vertex:
     name: Train Model in Vertex AI (Development)
     runs-on: ubuntu-latest
     needs: setup-and-compile-gcp
-    # if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment: development
     permissions:
       contents: read
@@ -200,6 +214,12 @@ jobs:
             --labels-json "$LABELS_JSON" \
             --enable-caching
 
+# ------------------------------------------------------------------------------
+# Job: require-approval
+# ------------------------------------------------------------------------------
+# This job pauses the workflow for manual reviewer approval before running
+# the production pipeline. It ensures that production jobs are not run
+# automatically and require human intervention.
   require-approval:
     name: Require Approval Before Production
     runs-on: ubuntu-latest
@@ -209,6 +229,12 @@ jobs:
       - name: Await Reviewer Approval
         run: echo "🛑 Waiting for reviewer approval before running production pipeline..."
 
+# ------------------------------------------------------------------------------
+# Job: train-prod-vertex
+# ------------------------------------------------------------------------------
+# This job trains the model in Vertex AI using the production pipeline.
+# It waits for approval, downloads the compiled pipeline, finds the parent
+# model for versioning, and submits the job with all required parameters.
   train-prod-vertex:
     name: Train Model in Vertex AI (Production)
     runs-on: ubuntu-latest
@@ -295,6 +321,11 @@ jobs:
             --labels-json "$LABELS_JSON" \
             --enable-caching
 
+# ------------------------------------------------------------------------------
+# Job: deploy-model
+# ------------------------------------------------------------------------------
+# This job deploys the trained model to a Vertex AI endpoint and tests it.
+# It runs after the production pipeline job completes successfully.
   deploy-model:
     name: Deploy Model to Endpoint
     runs-on: ubuntu-latest

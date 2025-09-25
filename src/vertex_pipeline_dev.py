@@ -1,9 +1,15 @@
 """
 Vertex AI KFP Pipeline for Development
-- Preprocesses data from GCS
-- Trains a model in development mode
-- Evaluates the model
-- Conditionally registers the model in Vertex AI Model Registry if accuracy is sufficient
+
+This pipeline performs the following steps:
+- Preprocesses diabetes data from GCS.
+- Trains a logistic regression model in development mode.
+- Evaluates the trained model on a test split.
+- Conditionally registers the model in Vertex AI Model Registry if accuracy
+  meets the minimum threshold.
+- Rejects the model if accuracy is insufficient.
+
+All comments and documentation lines are kept <= 100 characters for .flake8.
 """
 
 from kfp import dsl
@@ -25,7 +31,11 @@ PIPELINE_DESCRIPTION = (
 BASE_IMAGE = "python:3.9"
 REQUIREMENTS_PATH = "src/requirements.txt"
 
-
+# ------------------------------------------------------------------------------
+# Component: preprocess_data_op
+# ------------------------------------------------------------------------------
+# Downloads raw CSV data from GCS, splits into train/test sets, and saves
+# outputs for downstream steps.
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -50,14 +60,17 @@ def preprocess_data_op(
     blob_name = parsed.path.lstrip("/")
 
     local_file = "diabetes_raw_dev.csv"
+    # Download file from GCS to local disk
     storage.Client().bucket(bucket_name).blob(blob_name).download_to_filename(
         local_file
     )
     df = pd.read_csv(local_file)
 
+    # Split data into train and test sets (80/20 split)
     train_data = df.sample(frac=0.8, random_state=42)
     test_data = df.drop(train_data.index)
 
+    # Save splits to output artifact paths
     train_data.to_csv(output_train_data.path, index=False)
     test_data.to_csv(output_test_data.path, index=False)
 
@@ -67,7 +80,11 @@ def preprocess_data_op(
         output_test_data.path,
     )
 
-
+# ------------------------------------------------------------------------------
+# Component: train_model_op
+# ------------------------------------------------------------------------------
+# Trains a logistic regression model using the training data and saves the
+# model artifact for downstream evaluation and registration.
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -98,13 +115,14 @@ def train_model_op(
     X = train_df[FEATURE_COLUMNS]
     y = train_df["Diabetic"]
 
+    # Train logistic regression model with regularization rate
     model = LogisticRegression(C=1 / reg_rate, solver="liblinear")
     model.fit(X, y)
 
-    # Save as model.joblib for Vertex AI compatibility
+    # Save model as model.joblib for Vertex AI compatibility
     model_path = os.path.join(os.path.dirname(output_model.path), "model.joblib")
     joblib.dump(model, model_path)
-    # Also copy to output_model.path for downstream components
+    # Copy model to output_model.path for downstream use
     shutil.copy(model_path, output_model.path)
     logging.info(
         "[DEV] Model trained and stored at: %s and copied to: %s",
@@ -112,7 +130,11 @@ def train_model_op(
         output_model.path
     )
 
-
+# ------------------------------------------------------------------------------
+# Component: evaluate_model_op
+# ------------------------------------------------------------------------------
+# Evaluates the trained model on the test set, logs accuracy, and returns
+# accuracy for conditional pipeline logic.
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -155,7 +177,10 @@ def evaluate_model_op(
     )
     return accuracy
 
-
+# ------------------------------------------------------------------------------
+# Component: model_approved_op
+# ------------------------------------------------------------------------------
+# Logs approval message if model accuracy meets threshold.
 @component(
     base_image=BASE_IMAGE
 )
@@ -171,7 +196,11 @@ def model_approved_op(model_accuracy: float, model: Input[Model]):
         model.uri
     )
 
-
+# ------------------------------------------------------------------------------
+# Component: register_model_op
+# ------------------------------------------------------------------------------
+# Registers the model in Vertex AI Model Registry if approved. Supports
+# versioning under a parent model if provided.
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -216,7 +245,10 @@ def register_model_op(
         model.resource_name
     )
 
-
+# ------------------------------------------------------------------------------
+# Component: model_rejected_op
+# ------------------------------------------------------------------------------
+# Logs rejection message and raises error if model accuracy is below threshold.
 @component(
     base_image=BASE_IMAGE
 )
@@ -232,7 +264,11 @@ def model_rejected_op(model_accuracy: float, min_accuracy: float):
         "Model accuracy does not meet minimum development threshold."
     )
 
-
+# ------------------------------------------------------------------------------
+# Pipeline: dev_diabetes_pipeline
+# ------------------------------------------------------------------------------
+# Orchestrates all pipeline steps. Registers model only if accuracy meets
+# threshold, otherwise rejects.
 @dsl.pipeline(name=PIPELINE_NAME, description=PIPELINE_DESCRIPTION)
 def dev_diabetes_pipeline(
     project_id: str,
@@ -243,16 +279,19 @@ def dev_diabetes_pipeline(
     min_accuracy: float = 0.70,
     parent_model: str = ""
 ):
+    # Preprocess raw data from GCS
     preprocess_task = preprocess_data_op(
         input_gcs_uri=input_raw_data_gcs_uri
     ).set_cpu_limit("1").set_memory_limit("3840Mi")
 
+    # Train model on training data
     train_task = train_model_op(
         train_data=preprocess_task.outputs["output_train_data"],
         reg_rate=reg_rate
     ).set_cpu_limit("1").set_memory_limit("3840Mi")
     train_task.after(preprocess_task)
 
+    # Evaluate model on test data
     eval_task = evaluate_model_op(
         model=train_task.outputs["output_model"],
         test_data=preprocess_task.outputs["output_test_data"],
@@ -260,6 +299,7 @@ def dev_diabetes_pipeline(
     ).set_cpu_limit("1").set_memory_limit("3840Mi")
     eval_task.after(train_task)
 
+    # If accuracy >= min_accuracy, approve and register model
     with dsl.If(
         eval_task.outputs["Output"] >= min_accuracy,
         name="pass-accuracy-threshold"
@@ -279,6 +319,7 @@ def dev_diabetes_pipeline(
         ).set_cpu_limit("1").set_memory_limit("3840Mi")
         register_task.after(approved_task)
 
+    # If accuracy < min_accuracy, reject model
     with dsl.If(
         eval_task.outputs["Output"] < min_accuracy,
         name="fail-accuracy-threshold"
