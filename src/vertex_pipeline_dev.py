@@ -88,7 +88,6 @@ from kfp.dsl import (
     pipeline,
     Input,
     Output,
-    Dataset,
     Model,
     Metrics
 )
@@ -120,7 +119,7 @@ bigquery_query_job_op = components.load_component_from_url(
     ],
 )
 def train_model_op(
-    train_data: Input[Dataset],
+    train_data: Input[dsl.types.BQTable],  # <-- CHANGED
     output_model: Output[Model],
     reg_rate: float,
     project_id: str,
@@ -173,7 +172,7 @@ def train_model_op(
     ],
 )
 def evaluate_model_op(
-    test_data: Input[Dataset],
+    test_data: Input[dsl.types.BQTable],  # <-- CHANGED
     model: Input[Model],
     metrics: Output[Metrics],
     min_accuracy: float,
