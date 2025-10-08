@@ -9,15 +9,6 @@
 
 name: Vertex AI CI/CD - Train Model (Dev & Prod)
 
-# ------------------------------------------------------------------------------
-# Workflow Triggers
-# ------------------------------------------------------------------------------
-# The workflow runs on:
-# - Pushes to the 'main' branch.
-# - Pull requests targeting 'main'.
-# - Manual invocation via 'workflow_dispatch'.
-# Uncomment the second 'branches' line under 'push' to also trigger on branches
-# matching 'feature/*'.
 on:
   push:
     branches: [main]
@@ -25,31 +16,6 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-
-# ------------------------------------------------------------------------------
-# Environment Variables Documentation
-# ------------------------------------------------------------------------------
-# These variables are used throughout the workflow for GCP and pipeline config.
-# - GCP_PROJECT_ID: Google Cloud project identifier (from secrets).
-# - GCP_REGION: Region for Vertex AI resources.
-# - MODEL_DISPLAY_NAME: Display name for the deployed model.
-# - SHARED_MLOPS_BUCKET_NAME: GCS bucket for shared MLOps assets (from secrets).
-# - PIPELINE_RUNS_GCS_ROOT_BASE: Root GCS path for pipeline run artifacts.
-# - VERTEX_PIPELINE_SERVICE_ACCOUNT: Service account email for Vertex AI pipelines.
-# - DEV_PIPELINE_PYTHON_FILE: Path to dev pipeline Python source.
-# - DEV_PIPELINE_COMPILED_FILE: Output file for compiled dev pipeline.
-# - DEV_PIPELINE_DISPLAY_NAME: Display name for dev pipeline.
-# - DEV_INPUT_DATA_GCS_URI: GCS URI for dev input data.
-# - DEV_REG_RATE: Regularization rate for dev model training.
-# - DEV_MIN_ACCURACY: Minimum accuracy threshold for dev model.
-# - PROD_PIPELINE_PYTHON_FILE: Path to prod pipeline Python source.
-# - PROD_PIPELINE_COMPILED_FILE: Output file for compiled prod pipeline.
-# - PROD_PIPELINE_DISPLAY_NAME: Display name for prod pipeline.
-# - PROD_INPUT_DATA_GCS_URI: GCS URI for prod input data.
-# - PROD_REG_RATE: Regularization rate for prod model training.
-# - PROD_MIN_ACCURACY: Minimum accuracy threshold for prod model.
-# - All variables referencing `${{ secrets.* }}` are injected from GitHub secrets.
-# ------------------------------------------------------------------------------
 
 env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -59,26 +25,26 @@ env:
   PIPELINE_RUNS_GCS_ROOT_BASE: 'gs://${{ secrets.GCP_SHARED_MLOPS_BUCKET_NAME }}/pipeline-runs'
   VERTEX_PIPELINE_SERVICE_ACCOUNT: ${{ secrets.VERTEX_PIPELINE_SA_EMAIL }}
 
+  # BigQuery integration (replaces GCS CSV URIs)
+  BQ_DATASET: 'shared_bronze'
+  BQ_VIEW: 'diabetes_features_view'
+
   DEV_PIPELINE_PYTHON_FILE: 'src/vertex_pipeline_dev.py'
   DEV_PIPELINE_COMPILED_FILE: 'vertex_pipeline_dev.yaml'
   DEV_PIPELINE_DISPLAY_NAME: 'mlops-diabetes-pipeline-dev-vertex'
-  DEV_INPUT_DATA_GCS_URI: 'gs://${{ secrets.GCP_SHARED_MLOPS_BUCKET_NAME }}/dev/raw/diabetes.csv'
   DEV_REG_RATE: 0.05
   DEV_MIN_ACCURACY: 0.70
 
   PROD_PIPELINE_PYTHON_FILE: 'src/vertex_pipeline_prod.py'
   PROD_PIPELINE_COMPILED_FILE: 'vertex_pipeline_prod.yaml'
   PROD_PIPELINE_DISPLAY_NAME: 'mlops-diabetes-pipeline-prod-vertex'
-  PROD_INPUT_DATA_GCS_URI: 'gs://${{ secrets.GCP_SHARED_MLOPS_BUCKET_NAME }}/prod/raw/diabetes.csv'
   PROD_REG_RATE: 0.05
   PROD_MIN_ACCURACY: 0.75
 
-# ------------------------------------------------------------------------------
-# Job: setup-and-compile-gcp
-# ------------------------------------------------------------------------------
-# This job sets up GCP authentication, installs dependencies, and compiles
-# both dev and prod Vertex AI pipelines. It also audits CPU limits and uploads
-# compiled pipeline files as artifacts for downstream jobs.
+  # OLD GCS-based variables (commented out for rollback)
+  # DEV_INPUT_DATA_GCS_URI: 'gs://${{ secrets.GCP_SHARED_MLOPS_BUCKET_NAME }}/dev/raw/diabetes.csv'
+  # PROD_INPUT_DATA_GCS_URI: 'gs://${{ secrets.GCP_SHARED_MLOPS_BUCKET_NAME }}/prod/raw/diabetes.csv'
+
 jobs:
   setup-and-compile-gcp:
     name: Setup GCP & Compile Vertex AI Pipelines
@@ -119,7 +85,7 @@ jobs:
         run: |
           gcloud auth list
           gcloud config list project
-          gcloud services enable aiplatform.googleapis.com storage.googleapis.com --project ${{ env.GCP_PROJECT_ID }}
+          gcloud services enable aiplatform.googleapis.com storage.googleapis.com bigquery.googleapis.com --project ${{ env.GCP_PROJECT_ID }}
 
       - name: Compile KFP Pipelines
         id: compile
@@ -142,12 +108,6 @@ jobs:
             ${{ env.DEV_PIPELINE_COMPILED_FILE }}
             ${{ env.PROD_PIPELINE_COMPILED_FILE }}
 
-# ------------------------------------------------------------------------------
-# Job: train-dev-vertex
-# ------------------------------------------------------------------------------
-# This job trains the model in Vertex AI using the development pipeline.
-# It downloads the compiled pipeline artifact, submits the job, and passes
-# parameters and labels for tracking.
   train-dev-vertex:
     name: Train Model in Vertex AI (Development)
     runs-on: ubuntu-latest
@@ -194,10 +154,11 @@ jobs:
             --arg project_id "${{ env.GCP_PROJECT_ID }}" \
             --arg region "${{ env.GCP_REGION }}" \
             --arg model_display_name "${{ env.MODEL_DISPLAY_NAME }}" \
-            --arg input_raw_data_gcs_uri "${{ env.DEV_INPUT_DATA_GCS_URI }}" \
+            --arg bq_dataset "${{ env.BQ_DATASET }}" \
+            --arg bq_view "${{ env.BQ_VIEW }}" \
             --arg reg_rate "${{ env.DEV_REG_RATE }}" \
             --arg min_accuracy "${{ env.DEV_MIN_ACCURACY }}" \
-            '{project_id: $project_id, region: $region, model_display_name: $model_display_name, input_raw_data_gcs_uri: $input_raw_data_gcs_uri, reg_rate: ($reg_rate|tonumber), min_accuracy: ($min_accuracy|tonumber)}')
+            '{project_id: $project_id, region: $region, model_display_name: $model_display_name, bq_dataset: $bq_dataset, bq_view: $bq_view, reg_rate: ($reg_rate|tonumber), min_accuracy: ($min_accuracy|tonumber)}')
           LABELS_JSON=$(jq -n \
             --arg commit_sha "${GITHUB_SHA::7}" \
             --arg trigger_event "${GITHUB_EVENT_NAME}" \
@@ -214,12 +175,6 @@ jobs:
             --labels-json "$LABELS_JSON" \
             --enable-caching
 
-# ------------------------------------------------------------------------------
-# Job: require-approval
-# ------------------------------------------------------------------------------
-# This job pauses the workflow for manual reviewer approval before running
-# the production pipeline. It ensures that production jobs are not run
-# automatically and require human intervention.
   require-approval:
     name: Require Approval Before Production
     runs-on: ubuntu-latest
@@ -229,12 +184,6 @@ jobs:
       - name: Await Reviewer Approval
         run: echo "🛑 Waiting for reviewer approval before running production pipeline..."
 
-# ------------------------------------------------------------------------------
-# Job: train-prod-vertex
-# ------------------------------------------------------------------------------
-# This job trains the model in Vertex AI using the production pipeline.
-# It waits for approval, downloads the compiled pipeline, finds the parent
-# model for versioning, and submits the job with all required parameters.
   train-prod-vertex:
     name: Train Model in Vertex AI (Production)
     runs-on: ubuntu-latest
@@ -300,11 +249,12 @@ jobs:
             --arg project_id "${{ env.GCP_PROJECT_ID }}" \
             --arg region "${{ env.GCP_REGION }}" \
             --arg model_display_name "${{ env.MODEL_DISPLAY_NAME }}" \
-            --arg input_raw_data_gcs_uri "${{ env.PROD_INPUT_DATA_GCS_URI }}" \
+            --arg bq_dataset "${{ env.BQ_DATASET }}" \
+            --arg bq_view "${{ env.BQ_VIEW }}" \
             --arg reg_rate "${{ env.PROD_REG_RATE }}" \
             --arg min_accuracy "${{ env.PROD_MIN_ACCURACY }}" \
             --arg parent_model "${{ steps.find_parent_model.outputs.PARENT_MODEL_NAME }}" \
-            '{project_id: $project_id, region: $region, model_display_name: $model_display_name, input_raw_data_gcs_uri: $input_raw_data_gcs_uri, reg_rate: ($reg_rate|tonumber), min_accuracy: ($min_accuracy|tonumber), parent_model: $parent_model}')
+            '{project_id: $project_id, region: $region, model_display_name: $model_display_name, bq_dataset: $bq_dataset, bq_view: $bq_view, reg_rate: ($reg_rate|tonumber), min_accuracy: ($min_accuracy|tonumber), parent_model: $parent_model}')
           LABELS_JSON=$(jq -n \
             --arg commit_sha "${GITHUB_SHA::7}" \
             --arg trigger_event "${GITHUB_EVENT_NAME}" \
@@ -321,11 +271,6 @@ jobs:
             --labels-json "$LABELS_JSON" \
             --enable-caching
 
-# ------------------------------------------------------------------------------
-# Job: deploy-model
-# ------------------------------------------------------------------------------
-# This job deploys the trained model to a Vertex AI endpoint and tests it.
-# It runs after the production pipeline job completes successfully.
   deploy-model:
     name: Deploy Model to Endpoint
     runs-on: ubuntu-latest
