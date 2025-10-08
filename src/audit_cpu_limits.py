@@ -1,6 +1,7 @@
 import sys
 import yaml
 
+
 def check_cpu_limits(pipeline_yaml_path, expected_cpu="1"):
     with open(pipeline_yaml_path, "r") as f:
         pipeline_spec = yaml.safe_load(f)
@@ -25,6 +26,7 @@ def check_cpu_limits(pipeline_yaml_path, expected_cpu="1"):
     else:
         print("\n".join(problems))
         sys.exit(1)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

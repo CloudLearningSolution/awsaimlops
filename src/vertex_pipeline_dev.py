@@ -109,6 +109,8 @@ bigquery_query_job_op = components.load_component_from_url(
 )
 
 # Component: train_model_op (MODIFIED FOR BIGQUERY)
+
+
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -160,6 +162,8 @@ def train_model_op(
     )
 
 # Component: evaluate_model_op (MODIFIED FOR BIGQUERY)
+
+
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -211,6 +215,8 @@ def evaluate_model_op(
     return accuracy
 
 # Component: model_approved_op
+
+
 @component(
     base_image=BASE_IMAGE
 )
@@ -227,6 +233,8 @@ def model_approved_op(model_accuracy: float, model: Input[Model]):
     )
 
 # Component: register_model_op
+
+
 @component(
     base_image=BASE_IMAGE,
     packages_to_install=[
@@ -272,6 +280,8 @@ def register_model_op(
     )
 
 # Component: model_rejected_op
+
+
 @component(
     base_image=BASE_IMAGE
 )
@@ -288,6 +298,8 @@ def model_rejected_op(model_accuracy: float, min_accuracy: float):
     )
 
 # Pipeline: dev_diabetes_pipeline (MODIFIED FOR BIGQUERY)
+
+
 @dsl.pipeline(name=PIPELINE_NAME, description=PIPELINE_DESCRIPTION)
 def dev_diabetes_pipeline(
     project_id: str,
