@@ -82,6 +82,7 @@ from kfp.dsl import (
     Model,
     Metrics
 )
+from google_cloud_pipeline_components.types import artifact_types
 
 PIPELINE_NAME = "mlops-diabetes-prod-pipeline"
 PIPELINE_DESCRIPTION = (
@@ -110,7 +111,7 @@ bigquery_query_job_op = components.load_component_from_url(
     ],
 )
 def train_model_op(
-    train_data: Input[dsl.types.BQTable],  # <-- CHANGED
+    train_data: Input[artifact_types.BQTable],  # <-- FIXED TYPE
     output_model: Output[Model],
     reg_rate: float,
     project_id: str,
@@ -163,7 +164,7 @@ def train_model_op(
     ],
 )
 def evaluate_model_op(
-    test_data: Input[dsl.types.BQTable],  # <-- CHANGED
+    test_data: Input[artifact_types.BQTable],  # <-- FIXED TYPE
     model: Input[Model],
     metrics: Output[Metrics],
     min_accuracy: float,
