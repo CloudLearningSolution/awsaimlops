@@ -7,3 +7,5 @@ google-cloud-aiplatform==1.56.0
 kfp==2.7.0
 google-cloud-pipeline-components==2.14.1
 google-cloud-bigquery==3.11.4
+db-dtypes==1.1.1
+pyarrow==12.0.1
