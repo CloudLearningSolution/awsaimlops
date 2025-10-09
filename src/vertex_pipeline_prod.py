@@ -132,9 +132,11 @@ def train_model_op(
 
     logging.basicConfig(level=logging.INFO)
     bq_client = bigquery.Client(project=project_id, location=bq_location)
-    table_uri = train_data.metadata.get("destinationTable", train_data.uri)
-    logging.info("[PROD] Reading training data from BigQuery: %s", table_uri)
-    query = f"SELECT * FROM `{table_uri}`"
+    table_ref = train_data.metadata.get("destinationTable")
+    if not table_ref:
+        raise ValueError("No BigQuery destinationTable found in train_data metadata.")
+    logging.info("[PROD] Reading training data from BigQuery: %s", table_ref)
+    query = f"SELECT * FROM `{table_ref}`"
     train_df = bq_client.query(query).to_dataframe()
     logging.info("[PROD] Loaded %d training rows from BigQuery", len(train_df))
     X = train_df[FEATURE_COLUMNS]
@@ -184,9 +186,11 @@ def evaluate_model_op(
 
     logging.basicConfig(level=logging.INFO)
     bq_client = bigquery.Client(project=project_id, location=bq_location)
-    table_uri = test_data.metadata.get("destinationTable", test_data.uri)
-    logging.info("[PROD] Reading test data from BigQuery: %s", table_uri)
-    query = f"SELECT * FROM `{table_uri}`"
+    table_ref = test_data.metadata.get("destinationTable")
+    if not table_ref:
+        raise ValueError("No BigQuery destinationTable found in test_data metadata.")
+    logging.info("[PROD] Reading test data from BigQuery: %s", table_ref)
+    query = f"SELECT * FROM `{table_ref}`"
     test_df = bq_client.query(query).to_dataframe()
     logging.info("[PROD] Loaded %d test rows from BigQuery", len(test_df))
     model_artifact = joblib.load(model.path)
