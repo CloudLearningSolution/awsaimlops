@@ -20,66 +20,27 @@ This pipeline demonstrates the complete Vertex AI Pipeline component architectur
 - Component dependencies and data flow
 - Conditional logic using dsl.If
 
-Understanding this pipeline helps identify Vertex AI Pipeline components,
-their purposes, and how they work together in the pipeline architecture.
-
-TODO: Lab 5.4.1 - Component Identification: KFP v2 pipeline with multiple component types
-TODO: Lab 5.4.2 - Purpose Recognition: Complete ML workflow from data to model registration
-TODO: Lab 5.4.3 - Architecture Understanding: Component-based pipeline architecture
-
 ===============================================================================
 Lab 5.5: Vertex AI Custom Components and Pre-built Components and Accelerator Templates
 ===============================================================================
 This pipeline demonstrates the strategic use of custom components and how they
-compare to pre-built Google Cloud Pipeline Components. Understanding when to use
-custom vs pre-built components is crucial for enterprise ML architecture.
+compare to pre-built Google Cloud Pipeline Components.
 
 ACCELERATOR TEMPLATE ARCHITECTURE (3-Layer Enterprise Model):
 =============================================================
-1. INFRASTRUCTURE LAYER (Terraform):
-   - Vertex AI pipeline resources provisioned as code
-   - Service accounts and IAM permissions
-   - GCS buckets and datasets
-   - BigQuery datasets and Feature Groups
-   - Multi-environment deployment (dev/prod)
-   - See: vertex_ai_infrastructure.tf for complete infrastructure
-
-2. PIPELINE LAYER (This File - Vertex AI):
-   - Custom components for business-specific logic
-   - Pre-built components for standard operations (BigQuery Query Job)
-   - Integration with Google Cloud services (BigQuery, Feature Groups)
-   - MLOps workflows and orchestration
-
-3. ENTERPRISE LAYER (Best Practices):
-   - Industry-specific implementations
-   - Governance and compliance patterns
-   - Reusable solution frameworks
-   - Production-ready templates
+1. INFRASTRUCTURE LAYER (Terraform)
+2. PIPELINE LAYER (This File - Vertex AI)
+3. ENTERPRISE LAYER (Best Practices)
 
 COMPONENT STRATEGY IN THIS PIPELINE:
 ====================================
-This pipeline uses a MIX of custom and pre-built components:
-- CUSTOM components for training and evaluation (business logic)
-- PRE-BUILT BigQuery Query Job component for data preprocessing
-- Feature Groups for feature governance and metadata
-- Trade-offs between custom and pre-built approaches
-- Integration patterns for enterprise accelerator templates
+This pipeline uses a MIX of custom and pre-built components.
 
 BIGQUERY AND FEATURE GROUP INTEGRATION:
 =======================================
-This pipeline demonstrates enterprise-grade BigQuery integration:
-- BigQuery views as feature sources
-- Pre-built BigQuery Query Job component for data access
-- Feature Groups for feature registry and governance
-- Serverless data preprocessing with BigQuery
-- SQL-based train/test splitting using hash functions
-
-TODO: Lab 5.5.1 - Custom vs Pre-built: Mix of custom and pre-built components
-TODO: Lab 5.5.2 - Pre-built Alternatives: BigQuery Query Job for preprocessing
-TODO: Lab 5.5.3 - Accelerator Templates: Understand 3-layer enterprise architecture
-TODO: Lab 5.5.4 - BigQuery Integration: Pre-built component for data access
-TODO: Lab 5.5.5 - Feature Groups: Registry and governance for features
+This pipeline demonstrates enterprise-grade BigQuery integration.
 ===============================================================================
+
 """
 
 from kfp import dsl, components
@@ -101,14 +62,11 @@ PIPELINE_DESCRIPTION = (
 BASE_IMAGE = "python:3.9"
 REQUIREMENTS_PATH = "src/requirements.txt"
 
-# PRE-BUILT COMPONENT: BigQuery Query Job
 bigquery_query_job_op = components.load_component_from_url(
     'https://us-kfp.pkg.dev/ml-pipeline/google-cloud-registry/'
     'bigquery-query-job/sha256:'
     'd1cae80bc0de4e5b95b994739c8d0d7d42ce5a4cb17d3c9512eaed14540f6343'
 )
-
-# Component: train_model_op (MODIFIED FOR BIGQUERY)
 
 
 @component(
@@ -120,7 +78,7 @@ bigquery_query_job_op = components.load_component_from_url(
     ],
 )
 def train_model_op(
-    train_data: Input[artifact_types.BQTable],  # <-- FIXED TYPE
+    train_data: Input[artifact_types.BQTable],
     output_model: Output[Model],
     reg_rate: float,
     project_id: str,
@@ -133,6 +91,7 @@ def train_model_op(
     import logging
     import os
     import shutil
+    import re
 
     FEATURE_COLUMNS = [
         "Pregnancies", "PlasmaGlucose", "DiastolicBloodPressure",
@@ -140,11 +99,16 @@ def train_model_op(
     ]
 
     logging.basicConfig(level=logging.INFO)
-    bq_client = bigquery.Client(project=project_id, location=bq_location)
-    table_ref = train_data.metadata.get("destinationTable")
-    if not table_ref:
-        raise ValueError("No BigQuery destinationTable found in train_data metadata.")
+    uri = train_data.uri
+    logging.info("[DEV] Parsing BigQuery table from URI: %s", uri)
+    match = re.search(r'projects/([^/]+)/datasets/([^/]+)/tables/([^/]+)', uri)
+    if not match:
+        raise ValueError(f"Could not parse BigQuery table reference from URI: {uri}")
+    proj, dataset, table = match.groups()
+    table_ref = f"{proj}.{dataset}.{table}"
+
     logging.info("[DEV] Reading training data from BigQuery: %s", table_ref)
+    bq_client = bigquery.Client(project=project_id, location=bq_location)
     query = f"SELECT * FROM `{table_ref}`"
     train_df = bq_client.query(query).to_dataframe()
     logging.info("[DEV] Loaded %d training rows from BigQuery", len(train_df))
@@ -163,8 +127,6 @@ def train_model_op(
         output_model.path
     )
 
-# Component: evaluate_model_op (MODIFIED FOR BIGQUERY)
-
 
 @component(
     base_image=BASE_IMAGE,
@@ -175,7 +137,7 @@ def train_model_op(
     ],
 )
 def evaluate_model_op(
-    test_data: Input[artifact_types.BQTable],  # <-- FIXED TYPE
+    test_data: Input[artifact_types.BQTable],
     model: Input[Model],
     metrics: Output[Metrics],
     min_accuracy: float,
@@ -187,6 +149,7 @@ def evaluate_model_op(
     from sklearn.metrics import accuracy_score
     from google.cloud import bigquery
     import logging
+    import re
 
     FEATURE_COLUMNS = [
         "Pregnancies", "PlasmaGlucose", "DiastolicBloodPressure",
@@ -194,11 +157,16 @@ def evaluate_model_op(
     ]
 
     logging.basicConfig(level=logging.INFO)
-    bq_client = bigquery.Client(project=project_id, location=bq_location)
-    table_ref = test_data.metadata.get("destinationTable")
-    if not table_ref:
-        raise ValueError("No BigQuery destinationTable found in test_data metadata.")
+    uri = test_data.uri
+    logging.info("[DEV] Parsing BigQuery table from URI: %s", uri)
+    match = re.search(r'projects/([^/]+)/datasets/([^/]+)/tables/([^/]+)', uri)
+    if not match:
+        raise ValueError(f"Could not parse BigQuery table reference from URI: {uri}")
+    proj, dataset, table = match.groups()
+    table_ref = f"{proj}.{dataset}.{table}"
+
     logging.info("[DEV] Reading test data from BigQuery: %s", table_ref)
+    bq_client = bigquery.Client(project=project_id, location=bq_location)
     query = f"SELECT * FROM `{table_ref}`"
     test_df = bq_client.query(query).to_dataframe()
     logging.info("[DEV] Loaded %d test rows from BigQuery", len(test_df))
@@ -212,13 +180,8 @@ def evaluate_model_op(
     metrics.log_metric("accuracy", accuracy)
     metrics.log_metric("min_accuracy_threshold", min_accuracy)
 
-    logging.info(
-        "[DEV] Accuracy = %.4f",
-        accuracy
-    )
+    logging.info("[DEV] Accuracy = %.4f", accuracy)
     return accuracy
-
-# Component: model_approved_op
 
 
 @component(
@@ -235,8 +198,6 @@ def model_approved_op(model_accuracy: float, model: Input[Model]):
         "[DEV] Ready for registration from: %s",
         model.uri
     )
-
-# Component: register_model_op
 
 
 @component(
@@ -283,8 +244,6 @@ def register_model_op(
         model.resource_name
     )
 
-# Component: model_rejected_op
-
 
 @component(
     base_image=BASE_IMAGE
@@ -301,8 +260,6 @@ def model_rejected_op(model_accuracy: float, min_accuracy: float):
         "Model accuracy does not meet minimum development threshold."
     )
 
-# Pipeline: dev_diabetes_pipeline (MODIFIED FOR BIGQUERY)
-
 
 @dsl.pipeline(name=PIPELINE_NAME, description=PIPELINE_DESCRIPTION)
 def dev_diabetes_pipeline(
@@ -315,7 +272,6 @@ def dev_diabetes_pipeline(
     min_accuracy: float = 0.70,
     parent_model: str = ""
 ):
-    # Query training data from BigQuery view (80% split)
     train_query = f"""
     SELECT
       Pregnancies,
@@ -336,7 +292,6 @@ def dev_diabetes_pipeline(
         query=train_query
     )
 
-    # Query test data from BigQuery view (20% split)
     test_query = f"""
     SELECT
       Pregnancies,
