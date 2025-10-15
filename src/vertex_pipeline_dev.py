@@ -40,7 +40,7 @@ BIGQUERY AND FEATURE GROUP INTEGRATION:
 =======================================
 This pipeline demonstrates enterprise-grade BigQuery integration.
 ===============================================================================
-
+Anushka was here!
 """
 
 from kfp import dsl, components
