@@ -90,8 +90,8 @@ jobs:
       - name: Compile KFP Pipelines
         id: compile
         run: |
-          python src/compiler.py --py "${{ env.DEV_PIPELINE_PYTHON_FILE }}" --output "${{ env.DEV_PIPELINE_COMPILED_FILE }}"
-          python src/compiler.py --py "${{ env.PROD_PIPELINE_PYTHON_FILE }}" --output "${{ env.PROD_PIPELINE_COMPILED_FILE }}"
+          python -m src.compiler --py "${{ env.DEV_PIPELINE_PYTHON_FILE }}" --output "${{ env.DEV_PIPELINE_COMPILED_FILE }}"
+          python -m src.compiler --py "${{ env.PROD_PIPELINE_PYTHON_FILE }}" --output "${{ env.PROD_PIPELINE_COMPILED_FILE }}"
           echo "dev_pipeline_path_abs=${{ github.workspace }}/${{ env.DEV_PIPELINE_COMPILED_FILE }}" >> $GITHUB_OUTPUT
           echo "prod_pipeline_path_abs=${{ github.workspace }}/${{ env.PROD_PIPELINE_COMPILED_FILE }}" >> $GITHUB_OUTPUT
 

@@ -17,7 +17,7 @@ from kfp import dsl
 from kfp.dsl import pipeline
 
 # Import custom components from the centralized custom components module.
-from src.custom_components import (
+from .custom_components import (
     train_model_op,
     evaluate_model_op,
     model_approved_op,
@@ -25,7 +25,7 @@ from src.custom_components import (
     model_rejected_op,
 )
 # Import pre-built components from the centralized pre-built components module.
-from src.prebuilt_components import bigquery_query_job_op
+from .prebuilt_components import bigquery_query_job_op
 
 PIPELINE_NAME = "mlops-diabetes-prod-pipeline"
 PIPELINE_DESCRIPTION = (
