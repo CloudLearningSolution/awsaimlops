@@ -14,8 +14,8 @@ from typing import Callable
 from kfp import compiler
 
 # Import pipeline functions for dev and prod environments.
-from vertex_pipeline_dev import dev_diabetes_pipeline
-from vertex_pipeline_prod import prod_diabetes_pipeline
+from .vertex_pipeline_dev import dev_diabetes_pipeline
+from .vertex_pipeline_prod import prod_diabetes_pipeline
 
 
 def main() -> None:
